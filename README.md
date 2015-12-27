@@ -1,5 +1,7 @@
 ### WORK IN PROGRESS
 
+[![Build Status](https://travis-ci.org/sec51/clamav-yara.svg?branch=master)](https://travis-ci.org/sec51/clamav-yara)
+
 ===
 
 ### Clamav To Yara [WORK IN PROGRESS]
