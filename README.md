@@ -12,7 +12,8 @@
 
 * Extract the signatures and generate YARA rules
 
-*** LICENSE
+
+### LICENSE
 
 Copyright (c) 2015 Sec51.com <info@sec51.com>
 
