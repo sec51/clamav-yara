@@ -13,9 +13,13 @@ func TestNewDefinitionsManager(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fmt.Println(manager.EtagMain)
-	fmt.Println(manager.EtagDaily)
-	fmt.Println(manager.PublicKeyData.Type)
+	if manager == nil {
+		t.Fatal("Failed to initialize the definitions download manager")
+	}
+
+	// fmt.Println(manager.EtagMain)
+	// fmt.Println(manager.EtagDaily)
+	// fmt.Println(manager.PublicKeyData.Type)
 
 	fmt.Println("OK. DefinitionManager init SUCCESS")
 }

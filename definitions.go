@@ -16,7 +16,7 @@ import (
 )
 
 // FORMATS:
-// *.hsb => HashString:FileSize:MalwareName - (HsshString can be both SHA1 and SHA256 - need to distinguish based on the length of the string)
+// *.hsb => HashString:FileSize:MalwareName - (HashString can be both SHA1 and SHA256 - need to distinguish based on the length of the string)
 // *.mdb => PESectionSize:PESectionHash:MalwareName - a hash signature for a specific section in a PE file. Hash is MD5
 // *.msb => PESectionSize:PESectionHash:MalwareName - a hash signature for a specific section in a PE file. Hash can be SHA1 and SHA256
 // *.ldb => SignatureName;TargetDescriptionBlock;LogicalExpression;Subsig0;Subsig1;Subsig2;... - allow combining of multiple signatures in extended format using
@@ -64,11 +64,23 @@ Signatures for PE, ELF and Mach-O files additionally support:
 // It seems that Clamav does not offer HTTPS for downloading of the definitions.
 // This means the files need to be checked against the signature
 // Need to look into the signature format fore the CVD file! Seems to be using: plain = cipher^e mod n
+
+// ===================== YARA vs ClamAV SIGNATURE formats
+// NIBBLE MATCHING: same for both => a? or ?? os ?a => OK
+// WILDCARD *: [-] vs * => OK
+// JUMPS:	[LOWER-HIGHER]	vs {LOWER-HIGHER} 	=> we need to substitutde the parenthesis => OK
+// UNBOUNDED JUMOS: [10-]   vs {10-}			=> we need to substitutde the parenthesis => OK
+// OR: (aa|bb|cc|..) vs (aa|bb|cc|..) => OK
+// NOT OR: (aa|bb|cc|..) with NOT in the condition section (complicates the generation of YARA signatures) vs !(aa|bb|cc|..) => SKIPPED FOR NOW
+// ELF, PE: specific target type vs entrypoint (entrypoint is deprecated in favour of an external module.
+// 			I find this quite risky in terms of memory leaks...) => SKIPPED FOR NOW
+
 const (
 	MAIN_DATABASE_URL  = "http://database.clamav.net/main.cvd"
 	DAILY_DATABASE_URL = "http://database.clamav.net/daily.cvd"
 )
 
+// Created once, this object allows to download the ClamAV definitions from a specific URL (at the moment hard coded)
 type DefinitionsManager struct {
 	httpCLient    http.Client  // the HTTP client for downloading the definitions
 	EtagMain      string       // etag of the main DB was downloaded
@@ -76,6 +88,7 @@ type DefinitionsManager struct {
 	PublicKeyData *armor.Block // TODO: the Clamav public key which is read from the local verification.key
 }
 
+// This is the struct for holding the ClamAV file header information
 type definition struct {
 	MD5Hash         string // md5 hash of the data
 	Signature       string // signature which needs to be verified
@@ -116,7 +129,7 @@ func NewDefinitionManager() (*DefinitionsManager, error) {
 
 }
 
-// TODO: implement signatire verification
+// TODO: implement signature verification
 func (m *DefinitionsManager) VerifyFile(file string) bool {
 	return true
 }
@@ -220,6 +233,9 @@ func ExtractFiles(data []byte) error {
 
 	tarReader := tar.NewReader(gzipReader)
 
+	// Create a new buffer for extracting the file
+	var fileBuffer bytes.Buffer
+
 	// Iterate through the files in the archive.
 	for {
 		header, err := tarReader.Next()
@@ -230,13 +246,30 @@ func ExtractFiles(data []byte) error {
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Contents of %s:\n", header.Name)
+		//fmt.Printf("Contents of %s:\n", header.Name)
 
 		// TODO: extract the files
 		// if _, err := io.Copy(os.Stdout, tr); err != nil {
 		// 	log.Fatalln(err)
 		// }
 		//fmt.Println()
+
+		// reset the buffer
+		fileBuffer.Reset()
+
+		// read the file into the buffer
+		if _, err := io.Copy(&fileBuffer, tarReader); err != nil {
+			fmt.Printf("Could not untar %s: %s\n", header.Name, err)
+			continue
+		}
+
+		switch {
+		case strings.Contains(header.Name, ".ndb"):
+			//ParseNDBSignatures(header.Name, fileBuffer.String())
+			break
+		default:
+			fmt.Printf("ClamAV file format %s not supported at the moment\n", header.Name)
+		}
 	}
 
 	return nil
