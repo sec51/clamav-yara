@@ -116,7 +116,6 @@ func translateSignatureToYARA(sigHash string) string {
 
 	// JUMPS:	{LOWER-HIGHER}	to [LOWER-HIGHER] 	=> we need to substitutde the parenthesis => OK
 	// UNBOUNDED JUMPS: {10-}   to [10-]			=> we need to substitutde the parenthesis => OK
-
 	// we need to sanitize the case {-n}, yara does not suport it, therefore translate it to {0-n}
 	if strings.Contains(sigHash, "{-") {
 		sigHash = strings.Replace(sigHash, "{-", "{0-", -1)

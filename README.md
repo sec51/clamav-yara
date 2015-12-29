@@ -14,6 +14,17 @@
 
 * Extract the signatures and generate YARA rules
 
+===
+
+### TODO
+
+* Create a general way of parsing different signature formats. At the moment we are dealing only with NDB signatures, but there are a lot of commonalities with other formats.
+
+* Use FILE module on OSX and LINUX to detect the file type and scan that specific file only.
+
+* Test if FILE, PE, ELF module cause memory leaks
+
+===
 
 ### LICENSE
 

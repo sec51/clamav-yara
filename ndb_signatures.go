@@ -50,15 +50,24 @@ type platformNdbSigs struct {
 }
 
 type ndbSignature struct {
-	MalwareName      string
-	TargetType       signatureTarget
-	OffsetType       uint8
-	Offset           uint64
-	MaxShift         uint64
-	SigHash          string
-	RequirePEModule  bool
-	RequireELFModule bool
-	IsString         bool
+	MalwareName        string
+	TargetType         signatureTarget
+	OffsetType         uint8
+	Offset             uint64
+	MaxShift           uint64
+	SigHash            string
+	RequirePEModule    bool
+	RequireELFModule   bool
+	RequireMachOModule bool // YARA does not have it yet, but it is used to identify Mach-O file/process types
+	IsString           bool
+	// In order to render the template we need some helper methods to dected what kind of offset we are dealing with
+	IsAbsoluteOffset        bool
+	IsEndOfFileMinusOffset  bool
+	IsEntryPointPlusOffset  bool
+	IsEntryPointMinusOffset bool
+	IsEntireSectionOffset   bool
+	IsStartSectionAtOffset  bool
+	IsLastSectionAtOffset   bool
 }
 
 func newPlatformNdbSigs(pt platform) *platformNdbSigs {
@@ -67,10 +76,12 @@ func newPlatformNdbSigs(pt platform) *platformNdbSigs {
 	return sig
 }
 
+// convinient method to add signature to the array
 func (pndb *platformNdbSigs) AddSigs(signature *ndbSignature) {
 	pndb.Sigs = append(pndb.Sigs, signature)
 }
 
+// Used to clone signatires so they can be added to different platform with slightly different flags set
 func cloneSignature(originalSig *ndbSignature) *ndbSignature {
 	newSignature := *originalSig
 	return &newSignature
@@ -127,6 +138,7 @@ func ParseNDBSignatures(headerName string, data string) []*platformNdbSigs {
 				linux.AddSigs(signature)
 				break
 			case MACH_O_TARGET:
+				signature.RequireMachOModule = true
 				osx.AddSigs(signature)
 				break
 			}
@@ -200,6 +212,7 @@ func parseNdbSignatureRow(row string) *ndbSignature {
 			}
 			if matched {
 				setOffsetAndShift(ABSOLUTE_OFFSET, absoluteOffsetFormat, value, sig)
+				sig.IsAbsoluteOffset = true
 				continue
 			}
 
@@ -210,6 +223,7 @@ func parseNdbSignatureRow(row string) *ndbSignature {
 			}
 			if matched {
 				setOffsetAndShift(END_OF_FILE_MINUS, endOfFileFormat, value, sig)
+				sig.IsEndOfFileMinusOffset = true
 				continue
 			}
 
@@ -220,6 +234,7 @@ func parseNdbSignatureRow(row string) *ndbSignature {
 			}
 			if matched {
 				setOffsetAndShift(ENTRY_POINT_PLUS, entryPointPlusFormat, value, sig)
+				sig.IsEntryPointPlusOffset = true
 				continue
 			}
 
@@ -230,6 +245,7 @@ func parseNdbSignatureRow(row string) *ndbSignature {
 			}
 			if matched {
 				setOffsetAndShift(ENTRY_POINT_MINUS, entryPointMinusFormat, value, sig)
+				sig.IsEntryPointMinusOffset = true
 				continue
 			}
 
@@ -240,6 +256,7 @@ func parseNdbSignatureRow(row string) *ndbSignature {
 			}
 			if matched {
 				setOffsetAndShift(ENTIRE_SECTION_X, entireSectionFormat, value, sig)
+				sig.IsEntireSectionOffset = true
 				continue
 			}
 
@@ -250,6 +267,7 @@ func parseNdbSignatureRow(row string) *ndbSignature {
 			}
 			if matched {
 				setOffsetAndShift(START_SECTION_X, startSectionFormat, value, sig)
+				sig.IsStartSectionAtOffset = true
 				continue
 			}
 
@@ -260,6 +278,7 @@ func parseNdbSignatureRow(row string) *ndbSignature {
 			}
 			if matched {
 				setOffsetAndShift(START_LAST_SECTION, lastSectionFormat, value, sig)
+				sig.IsLastSectionAtOffset = true
 				continue
 			}
 
@@ -330,8 +349,4 @@ func parseOffsetMaxShift(offsetType uint8, format, data string) (uint64, uint64)
 
 	return offset, maxShift
 
-}
-
-func writeYaraFileDefinitions(ptSigs platformNdbSigs) error {
-	return nil
 }

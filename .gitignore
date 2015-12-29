@@ -1,2 +1,4 @@
 clamav-yara
-rules/
+rules/linux.yara
+rules/osx.yara
+rules/windows.yara

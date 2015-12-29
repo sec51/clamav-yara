@@ -76,7 +76,7 @@ func TestParseNdbSignatureRow(t *testing.T) {
 
 func TestParseNDBSignatures(t *testing.T) {
 	// Read all data
-	data, err := ioutil.ReadFile("main_test.cvd")
+	data, err := ioutil.ReadFile("daily_test.cvd")
 	if err != nil {
 		t.Fatal(err)
 	}
