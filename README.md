@@ -17,7 +17,7 @@
 
 ### LICENSE
 
-Copyright (c) 2015 Sec51.com <info@sec51.com>
+Copyright (c) 2015-2016 Sec51.com <info@sec51.com>
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above

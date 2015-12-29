@@ -89,13 +89,18 @@ type DefinitionsManager struct {
 }
 
 // This is the struct for holding the ClamAV file header information
-type definition struct {
+type definitionHeader struct {
 	MD5Hash         string // md5 hash of the data
 	Signature       string // signature which needs to be verified
 	Version         int    // version of the DB
 	TotalSignatures int64  // total amount of signatures in the file
 	Level           int    // functionality level
 	Data            string // the data itself (contains all the signatures, new line separated) -Format: mdb
+}
+
+type definitionFile struct {
+	Name string
+	Data string
 }
 
 // Initialize a new DefinitionManager
@@ -176,10 +181,10 @@ func (m *DefinitionsManager) DownloadDefinitions(url string, etag string) error 
 // ClamAV-VDB:build time:version:number of signatures:functionality level required:MD5 checksum:digital signature:builder name:build time (sec)
 // This is present in the first 512 btes of the file
 // The rest is a TAR GZ encoded file
-func parseHeader(data []byte) (*definition, error) {
+func parseHeader(data []byte) (*definitionHeader, error) {
 
 	// init the definition
-	def := new(definition)
+	def := new(definitionHeader)
 
 	// convert to string so we can parse it more easily
 	dataString := string(data[:512])
@@ -217,7 +222,9 @@ func parseHeader(data []byte) (*definition, error) {
 }
 
 // Extract the file tar.gz
-func ExtractFiles(data []byte) error {
+func ExtractFiles(data []byte) ([]definitionFile, error) {
+
+	var files []definitionFile
 
 	// extract the data only and cut the header off
 	tarGzip := data[512:]
@@ -228,9 +235,10 @@ func ExtractFiles(data []byte) error {
 	// uncompress
 	gzipReader, err := gzip.NewReader(gzipBuffer)
 	if err != nil {
-		return err
+		return files, err
 	}
 
+	// tar Reader
 	tarReader := tar.NewReader(gzipReader)
 
 	// Create a new buffer for extracting the file
@@ -244,34 +252,26 @@ func ExtractFiles(data []byte) error {
 			break
 		}
 		if err != nil {
-			return err
+			return files, err
 		}
-		//fmt.Printf("Contents of %s:\n", header.Name)
-
-		// TODO: extract the files
-		// if _, err := io.Copy(os.Stdout, tr); err != nil {
-		// 	log.Fatalln(err)
-		// }
-		//fmt.Println()
 
 		// reset the buffer
 		fileBuffer.Reset()
 
-		// read the file into the buffer
-		if _, err := io.Copy(&fileBuffer, tarReader); err != nil {
-			fmt.Printf("Could not untar %s: %s\n", header.Name, err)
-			continue
-		}
-
 		switch {
 		case strings.Contains(header.Name, ".ndb"):
-			//ParseNDBSignatures(header.Name, fileBuffer.String())
+			// read the file into the buffer
+			if _, err := io.Copy(&fileBuffer, tarReader); err != nil {
+				fmt.Printf("Could not untar %s: %s\n", header.Name, err)
+				continue
+			}
+			files = append(files, definitionFile{header.Name, fileBuffer.String()})
 			break
 		default:
 			fmt.Printf("ClamAV file format %s not supported at the moment\n", header.Name)
 		}
 	}
 
-	return nil
+	return files, nil
 
 }

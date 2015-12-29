@@ -57,9 +57,13 @@ func TestParseHeader(t *testing.T) {
 		t.Error("Parsing Signature header and got it empty")
 	}
 
-	err = ExtractFiles(data)
+	files, err := ExtractFiles(data)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	if len(files) == 0 {
+		t.Fatal("Could not extract a single file")
 	}
 
 	fmt.Println("OK. Header parsing SUCCESS")

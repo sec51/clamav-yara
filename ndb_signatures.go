@@ -35,7 +35,7 @@ var (
 	lastSectionFormat string = "SL+%d"
 
 	// n
-	absoluteOffsetRegex  string = "[0-9]+"
+	absoluteOffsetRegex  string = "^[0-9]+"
 	absoluteOffsetFormat string = "%d"
 
 	// EOF-n
@@ -58,6 +58,7 @@ type ndbSignature struct {
 	SigHash          string
 	RequirePEModule  bool
 	RequireELFModule bool
+	IsString         bool
 }
 
 func newPlatformNdbSigs(pt platform) *platformNdbSigs {
@@ -78,7 +79,9 @@ func cloneSignature(originalSig *ndbSignature) *ndbSignature {
 // Parse the NDB signatures
 // This method has side effects only and creates the spefici yara files with the ndb signatures in it, devided by platform (win, os x, linux)
 // If BOTH Offset and MaxShift are zero then it means: any (*)
-func ParseNDBSignatures(headerName string, data string) {
+func ParseNDBSignatures(headerName string, data string) []*platformNdbSigs {
+
+	var platforms []*platformNdbSigs
 
 	// OSX container for the respective signatures
 	osx := newPlatformNdbSigs(OSX_PLATFORM)
@@ -96,40 +99,45 @@ func ParseNDBSignatures(headerName string, data string) {
 	for _, row := range fileRows {
 
 		signature := parseNdbSignatureRow(row)
+		if signature != nil {
+			switch signature.TargetType {
+			// add to all 3 targets
+			case ANY_TARGET:
 
-		switch signature.TargetType {
-		// add to all 3 targets
-		case ANY_TARGET:
+				// YARA does not have a module for MACH-O files yet - so do not flip any flag at the moment
+				osx.AddSigs(signature)
 
-			// YARA does not have a module for MACH-O files yet - so do not flip any flag at the moment
-			osx.AddSigs(signature)
+				// Linux (ELF)
+				nixSig := cloneSignature(signature)
+				nixSig.RequireELFModule = true
+				linux.AddSigs(nixSig)
 
-			// Linux (ELF)
-			nixSig := cloneSignature(signature)
-			nixSig.RequireELFModule = true
-			linux.AddSigs(nixSig)
-
-			// Win (PE)
-			winSig := cloneSignature(signature)
-			winSig.RequirePEModule = true
-			win.AddSigs(winSig)
-			break
-			// add to all WIN targets and needs the PE module !
-		case PE_TARGET:
-			// set PE module as required
-			win.AddSigs(signature)
-			break
-		case ELF_TARGET:
-			// set ELF module as required
-			linux.AddSigs(signature)
-			break
-		case MACH_O_TARGET:
-			osx.AddSigs(signature)
-			break
+				// Win (PE)
+				winSig := cloneSignature(signature)
+				winSig.RequirePEModule = true
+				win.AddSigs(winSig)
+				break
+				// add to all WIN targets and needs the PE module !
+			case PE_TARGET:
+				// set PE module as required
+				win.AddSigs(signature)
+				break
+			case ELF_TARGET:
+				// set ELF module as required
+				linux.AddSigs(signature)
+				break
+			case MACH_O_TARGET:
+				osx.AddSigs(signature)
+				break
+			}
 		}
 
 	}
 
+	// add the platform to the array
+	platforms = append(platforms, osx, linux, win)
+
+	return platforms
 }
 
 // parse a single NDB signature row
@@ -150,7 +158,7 @@ func parseNdbSignatureRow(row string) *ndbSignature {
 
 		switch index {
 		case 0: // Malware name
-			sig.MalwareName = value
+			sig.MalwareName = sanitizeMalwareName(value)
 			continue
 		case 1: // Target type
 			// convert the string to an int (TODO: convert it directly to uint8)
@@ -191,8 +199,7 @@ func parseNdbSignatureRow(row string) *ndbSignature {
 				fmt.Printf("Failed to match n (absolute offset) on the NDB signature offset: %s\n", err)
 			}
 			if matched {
-				setOffsetAndShift(absoluteOffsetFormat, value, sig)
-				sig.OffsetType = ABSOLUTE_OFFSET
+				setOffsetAndShift(ABSOLUTE_OFFSET, absoluteOffsetFormat, value, sig)
 				continue
 			}
 
@@ -202,8 +209,7 @@ func parseNdbSignatureRow(row string) *ndbSignature {
 				fmt.Printf("Failed to match EOF-n on the NDB signature offset: %s\n", err)
 			}
 			if matched {
-				setOffsetAndShift(endOfFileFormat, value, sig)
-				sig.OffsetType = END_OF_FILE_MINUS
+				setOffsetAndShift(END_OF_FILE_MINUS, endOfFileFormat, value, sig)
 				continue
 			}
 
@@ -213,8 +219,7 @@ func parseNdbSignatureRow(row string) *ndbSignature {
 				fmt.Printf("Failed to match EP+n on the NDB signature offset: %s\n", err)
 			}
 			if matched {
-				setOffsetAndShift(entryPointPlusFormat, value, sig)
-				sig.OffsetType = ENTRY_POINT_PLUS
+				setOffsetAndShift(ENTRY_POINT_PLUS, entryPointPlusFormat, value, sig)
 				continue
 			}
 
@@ -224,8 +229,7 @@ func parseNdbSignatureRow(row string) *ndbSignature {
 				fmt.Printf("Failed to match EP-n on the NDB signature offset: %s\n", err)
 			}
 			if matched {
-				setOffsetAndShift(entryPointMinusFormat, value, sig)
-				sig.OffsetType = ENTRY_POINT_MINUS
+				setOffsetAndShift(ENTRY_POINT_MINUS, entryPointMinusFormat, value, sig)
 				continue
 			}
 
@@ -235,8 +239,7 @@ func parseNdbSignatureRow(row string) *ndbSignature {
 				fmt.Printf("Failed to match SEx on the NDB signature offset: %s\n", err)
 			}
 			if matched {
-				setOffsetAndShift(entireSectionFormat, value, sig)
-				sig.OffsetType = ENTIRE_SECTION_X
+				setOffsetAndShift(ENTIRE_SECTION_X, entireSectionFormat, value, sig)
 				continue
 			}
 
@@ -246,8 +249,7 @@ func parseNdbSignatureRow(row string) *ndbSignature {
 				fmt.Printf("Failed to match Sx+n on the NDB signature offset: %s\n", err)
 			}
 			if matched {
-				setOffsetAndShift(startSectionFormat, value, sig)
-				sig.OffsetType = START_SECTION_X
+				setOffsetAndShift(START_SECTION_X, startSectionFormat, value, sig)
 				continue
 			}
 
@@ -257,14 +259,14 @@ func parseNdbSignatureRow(row string) *ndbSignature {
 				fmt.Printf("Failed to match SL+n on the NDB signature offset: %s\n", err)
 			}
 			if matched {
-				setOffsetAndShift(lastSectionFormat, value, sig)
-				sig.OffsetType = START_LAST_SECTION
+				setOffsetAndShift(START_LAST_SECTION, lastSectionFormat, value, sig)
 				continue
 			}
 
 			continue
 		case 3: // hex signature
 			// this methos converts the format from CLAMAV signature to YARA
+			sig.IsString = !regexpHexString.MatchString(value)
 			sig.SigHash = translateSignatureToYARA(value)
 			continue
 		case 4: // optional Min FL
@@ -282,45 +284,48 @@ func parseNdbSignatureRow(row string) *ndbSignature {
 
 // this method is used to set the offset and the max shift on the signature
 // created to avoid code duplication
-func setOffsetAndShift(format, data string, sig *ndbSignature) {
-	offset, maxShift := parseOffsetMaxShift(format, data)
+func setOffsetAndShift(offsetType uint8, format, data string, sig *ndbSignature) {
+	sig.OffsetType = offsetType
+	offset, maxShift := parseOffsetMaxShift(offsetType, format, data)
 	sig.Offset = offset
 	sig.MaxShift = maxShift
 }
 
 // this method parses the single token for the offset and based on the format returns the
 // offset and the max shift
-func parseOffsetMaxShift(format, data string) (uint64, uint64) {
+func parseOffsetMaxShift(offsetType uint8, format, data string) (uint64, uint64) {
 
 	var offset, maxShift uint64
 	var err error
 
-	switch format {
-	case absoluteOffsetFormat:
+	switch offsetType {
+	case ABSOLUTE_OFFSET:
 		_, err = fmt.Sscanf(data, absoluteOffsetFormat, &offset)
 		break
-	case endOfFileFormat:
+	case END_OF_FILE_MINUS:
 		_, err = fmt.Sscanf(data, endOfFileFormat, &offset)
 		break
-	case entryPointPlusFormat:
+	case ENTRY_POINT_PLUS:
 		_, err = fmt.Sscanf(data, entryPointPlusFormat, &maxShift)
 		break
-	case entryPointMinusFormat:
+	case ENTRY_POINT_MINUS:
 		_, err = fmt.Sscanf(data, entryPointMinusFormat, &maxShift)
 		break
-	case startSectionFormat:
+	case START_SECTION_X:
 		_, err = fmt.Sscanf(data, startSectionFormat, &offset, &maxShift)
 		break
-	case entireSectionFormat:
+	case ENTIRE_SECTION_X:
 		_, err = fmt.Sscanf(data, entireSectionFormat, &offset)
 		break
-	case lastSectionFormat:
+	case START_LAST_SECTION:
 		_, err = fmt.Sscanf(data, lastSectionFormat, &maxShift) // offset is zero
 		break
+	default:
+		fmt.Println("Parsing Offset error:", "Falling to the catch all...")
 	}
 
 	if err != nil {
-		fmt.Println("Parsing Offset error:", err)
+		fmt.Printf("Parsing Offset error %s on format %s for value %s with offset type %d\n", err, format, data, offsetType)
 	}
 
 	return offset, maxShift
