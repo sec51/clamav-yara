@@ -151,7 +151,7 @@ func writeRules(pt *platformNdbSigs) error {
 	var buffer bytes.Buffer
 
 	// process the data
-	err = tpl.Execute(&buffer, pt.Sigs)
+	err = tpl.Execute(&buffer, pt)
 	if err != nil {
 		fmt.Printf("Creation of rules for platform %s failed with error %s\n:", pt.Platform.String(), err)
 		return err

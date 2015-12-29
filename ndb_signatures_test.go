@@ -6,6 +6,16 @@ import (
 	"testing"
 )
 
+// the the regexp to match the signature types
+func TestRegexp(t *testing.T) {
+
+	matched := entryPointPlusRegex.MatchString("EP+0")
+	if !matched {
+		t.Fatal("Regexp ENTRY_POINT_PLUS did not match the case")
+	}
+
+}
+
 func TestParseOffsetMaxShift(t *testing.T) {
 
 	var offset, maxShift uint64
@@ -72,11 +82,18 @@ func TestParseNdbSignatureRow(t *testing.T) {
 		t.Error("Malware signature detection error")
 	}
 
+	sample = "W32.Troxa:1:EP+0:e990fcffff"
+	sig = parseNdbSignatureRow(sample)
+
+	if sig.OffsetType != ENTRY_POINT_PLUS {
+		t.Fatal("Signatures should be of type ENTRY_POINT_PLUS")
+	}
+
 }
 
 func TestParseNDBSignatures(t *testing.T) {
 	// Read all data
-	data, err := ioutil.ReadFile("daily_test.cvd")
+	data, err := ioutil.ReadFile("main_test.cvd")
 	if err != nil {
 		t.Fatal(err)
 	}

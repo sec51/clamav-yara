@@ -1,3 +1,5 @@
+// WARNING: THIS IS NOT THREAD SAFE !
+// AT THE MOMENT THERE IS NO REASON FOR RUNNING THIS CODE IN MULTIPLE ROUTINES
 package main
 
 import (
@@ -5,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -15,38 +18,41 @@ const (
 var (
 
 	// EP+n = entry point plus n bytes (EP+0 for EP)
-	entryPointPlusRegex  string = "EP+[0-9]+"
+	entryPointPlusRegex         = regexp.MustCompile("^EP\\+[0-9]+")
 	entryPointPlusFormat string = "EP+%d"
 
 	//EP-n = entry point minus n bytes
-	entryPointMinusRegex  string = "EP-[0-9]+"
+	entryPointMinusRegex         = regexp.MustCompile("^EP\\-[0-9]+")
 	entryPointMinusFormat string = "EP-%d"
 
 	// Sx+n = start of section x’s (counted from 0) data plus n bytes
-	startSectionRegex  string = "S[0-9]+\\+[0-9]+"
+	startSectionRegex         = regexp.MustCompile("^S[0-9]+\\+[0-9]+")
 	startSectionFormat string = "S%d+%d"
 
 	// SEx = entire section x (offset must lie within section boundaries)
-	entireSectionRegex  string = "SE[0-9]+"
+	entireSectionRegex         = regexp.MustCompile("^SE[0-9]+")
 	entireSectionFormat string = "SE%d"
 
 	// SL+n = start of last section plus n bytes
-	lastSectionRegex  string = "SL[0-9]+"
+	lastSectionRegex         = regexp.MustCompile("^SL[0-9]+")
 	lastSectionFormat string = "SL+%d"
 
 	// n
-	absoluteOffsetRegex  string = "^[0-9]+"
+	absoluteOffsetRegex         = regexp.MustCompile("^[0-9]+")
 	absoluteOffsetFormat string = "%d"
 
 	// EOF-n
-	endOfFileRegex  string = "EOF-[0-9]+"
+	endOfFileRegex         = regexp.MustCompile("^EOF-[0-9]+")
 	endOfFileFormat string = "EOF-%d"
 )
 
 // this struct holds the NDB signature for each platform
 type platformNdbSigs struct {
-	Platform platform
-	Sigs     []*ndbSignature
+	Platform        platform
+	SigsNames       map[string]int // this map is used to lookup how many times the same name is used
+	Sigs            []*ndbSignature
+	LastGeneration  time.Time
+	TotalSignatures int
 }
 
 type ndbSignature struct {
@@ -73,12 +79,23 @@ type ndbSignature struct {
 func newPlatformNdbSigs(pt platform) *platformNdbSigs {
 	sig := new(platformNdbSigs)
 	sig.Platform = pt
+	sig.SigsNames = make(map[string]int)
 	return sig
 }
 
 // convinient method to add signature to the array
 func (pndb *platformNdbSigs) AddSigs(signature *ndbSignature) {
+
+	// check if the malware name has already appeared - otherwise add it with increment zero
+	if total, ok := pndb.SigsNames[signature.MalwareName]; ok {
+		increment := total + 1
+		pndb.SigsNames[signature.MalwareName] = increment
+		signature.MalwareName = signature.MalwareName + "__" + strconv.Itoa(increment)
+	} else {
+		pndb.SigsNames[signature.MalwareName] = 0
+	}
 	pndb.Sigs = append(pndb.Sigs, signature)
+
 }
 
 // Used to clone signatires so they can be added to different platform with slightly different flags set
@@ -131,10 +148,12 @@ func ParseNDBSignatures(headerName string, data string) []*platformNdbSigs {
 				// add to all WIN targets and needs the PE module !
 			case PE_TARGET:
 				// set PE module as required
+				signature.RequirePEModule = true
 				win.AddSigs(signature)
 				break
 			case ELF_TARGET:
 				// set ELF module as required
+				signature.RequireELFModule = true
 				linux.AddSigs(signature)
 				break
 			case MACH_O_TARGET:
@@ -145,6 +164,14 @@ func ParseNDBSignatures(headerName string, data string) []*platformNdbSigs {
 		}
 
 	}
+
+	osx.TotalSignatures = len(osx.Sigs)
+	linux.TotalSignatures = len(linux.Sigs)
+	win.TotalSignatures = len(win.Sigs)
+
+	osx.LastGeneration = time.Now().UTC()
+	linux.LastGeneration = time.Now().UTC()
+	win.LastGeneration = time.Now().UTC()
 
 	// add the platform to the array
 	platforms = append(platforms, osx, linux, win)
@@ -206,10 +233,7 @@ func parseNdbSignatureRow(row string) *ndbSignature {
 			}
 
 			// #### n
-			matched, err = regexp.MatchString(absoluteOffsetRegex, value)
-			if err != nil {
-				fmt.Printf("Failed to match n (absolute offset) on the NDB signature offset: %s\n", err)
-			}
+			matched = absoluteOffsetRegex.MatchString(value)
 			if matched {
 				setOffsetAndShift(ABSOLUTE_OFFSET, absoluteOffsetFormat, value, sig)
 				sig.IsAbsoluteOffset = true
@@ -217,10 +241,7 @@ func parseNdbSignatureRow(row string) *ndbSignature {
 			}
 
 			// #### EOF-n
-			matched, err = regexp.MatchString(endOfFileRegex, value)
-			if err != nil {
-				fmt.Printf("Failed to match EOF-n on the NDB signature offset: %s\n", err)
-			}
+			matched = endOfFileRegex.MatchString(value)
 			if matched {
 				setOffsetAndShift(END_OF_FILE_MINUS, endOfFileFormat, value, sig)
 				sig.IsEndOfFileMinusOffset = true
@@ -228,10 +249,7 @@ func parseNdbSignatureRow(row string) *ndbSignature {
 			}
 
 			// #### EP+n
-			matched, err = regexp.MatchString(entryPointPlusRegex, value)
-			if err != nil {
-				fmt.Printf("Failed to match EP+n on the NDB signature offset: %s\n", err)
-			}
+			matched = entryPointPlusRegex.MatchString(value)
 			if matched {
 				setOffsetAndShift(ENTRY_POINT_PLUS, entryPointPlusFormat, value, sig)
 				sig.IsEntryPointPlusOffset = true
@@ -239,10 +257,7 @@ func parseNdbSignatureRow(row string) *ndbSignature {
 			}
 
 			// #### EP-n
-			matched, err = regexp.MatchString(entryPointMinusRegex, value)
-			if err != nil {
-				fmt.Printf("Failed to match EP-n on the NDB signature offset: %s\n", err)
-			}
+			matched = entryPointMinusRegex.MatchString(value)
 			if matched {
 				setOffsetAndShift(ENTRY_POINT_MINUS, entryPointMinusFormat, value, sig)
 				sig.IsEntryPointMinusOffset = true
@@ -250,10 +265,7 @@ func parseNdbSignatureRow(row string) *ndbSignature {
 			}
 
 			// #### SEx
-			matched, err = regexp.MatchString(entireSectionRegex, value)
-			if err != nil {
-				fmt.Printf("Failed to match SEx on the NDB signature offset: %s\n", err)
-			}
+			matched = entireSectionRegex.MatchString(value)
 			if matched {
 				setOffsetAndShift(ENTIRE_SECTION_X, entireSectionFormat, value, sig)
 				sig.IsEntireSectionOffset = true
@@ -261,10 +273,7 @@ func parseNdbSignatureRow(row string) *ndbSignature {
 			}
 
 			// #### Sx+n
-			matched, err = regexp.MatchString(startSectionRegex, value)
-			if err != nil {
-				fmt.Printf("Failed to match Sx+n on the NDB signature offset: %s\n", err)
-			}
+			matched = startSectionRegex.MatchString(value)
 			if matched {
 				setOffsetAndShift(START_SECTION_X, startSectionFormat, value, sig)
 				sig.IsStartSectionAtOffset = true
@@ -272,10 +281,7 @@ func parseNdbSignatureRow(row string) *ndbSignature {
 			}
 
 			// #### SL+n
-			matched, err = regexp.MatchString(lastSectionRegex, value)
-			if err != nil {
-				fmt.Printf("Failed to match SL+n on the NDB signature offset: %s\n", err)
-			}
+			matched = lastSectionRegex.MatchString(value)
 			if matched {
 				setOffsetAndShift(START_LAST_SECTION, lastSectionFormat, value, sig)
 				sig.IsLastSectionAtOffset = true
