@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"golang.org/x/crypto/openpgp/armor"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"strconv"
@@ -69,15 +70,32 @@ Signatures for PE, ELF and Mach-O files additionally support:
 // NIBBLE MATCHING: same for both => a? or ?? os ?a => OK
 // WILDCARD *: [-] vs * => OK
 // JUMPS:	[LOWER-HIGHER]	vs {LOWER-HIGHER} 	=> we need to substitutde the parenthesis => OK
-// UNBOUNDED JUMOS: [10-]   vs {10-}			=> we need to substitutde the parenthesis => OK
+// UNBOUNDED JUMPS: [10-]   vs {10-}			=> we need to substitutde the parenthesis => OK
 // OR: (aa|bb|cc|..) vs (aa|bb|cc|..) => OK
 // NOT OR: (aa|bb|cc|..) with NOT in the condition section (complicates the generation of YARA signatures) vs !(aa|bb|cc|..) => SKIPPED FOR NOW
 // ELF, PE: specific target type vs entrypoint (entrypoint is deprecated in favour of an external module.
 // 			I find this quite risky in terms of memory leaks...) => SKIPPED FOR NOW
 
+type definitionType uint8
+type definitionExtensionType uint8
+
+// the default URLs for downloading the definitions
 const (
-	MAIN_DATABASE_URL  = "http://database.clamav.net/main.cvd"
-	DAILY_DATABASE_URL = "http://database.clamav.net/daily.cvd"
+	kMAIN_DATABASE_URL  = "http://database.clamav.net/main.cvd"
+	kDAILY_DATABASE_URL = "http://database.clamav.net/daily.cvd"
+)
+
+// The definition types (main, daily for now)
+const (
+	MAIN_DEFINITION definitionType = 0 + iota
+	DAILY_DEFINITION
+)
+
+// Definition file extension we are parsing at the moment
+const (
+	kNDB_EXTENSION definitionExtensionType = 0 + iota
+	kHSB_EXTENSION
+	kHDB_EXTENSION
 )
 
 // Created once, this object allows to download the ClamAV definitions from a specific URL (at the moment hard coded)
@@ -98,12 +116,29 @@ type definitionHeader struct {
 	Data            string // the data itself (contains all the signatures, new line separated) -Format: mdb
 }
 
+// Definition file, which contains the extension and the data it holds
 type definitionFile struct {
-	Name string
-	Data string
+	Name           string                  // name of the file, example: daily.ndb
+	Data           string                  // data of the file
+	DefinitionType definitionType          // the definition type, main or daily
+	Extension      definitionExtensionType // the extension type, example: ndb
+}
+
+func (def definitionType) String() string {
+	switch def {
+	case MAIN_DEFINITION:
+		return "main"
+	case DAILY_DEFINITION:
+		return "daily"
+	default:
+		return ""
+	}
 }
 
 // Initialize a new DefinitionManager
+// The definition manager is responsible for downloading the main.cvd and daily.cvd from
+// the URLs defined above, via conditional (ETAG) requests
+// In addiiton it holds the state of the download (ETAGS and signature, once verification is done)
 func NewDefinitionManager() (*DefinitionsManager, error) {
 
 	// new instance of the manager
@@ -135,13 +170,25 @@ func NewDefinitionManager() (*DefinitionsManager, error) {
 }
 
 // TODO: implement signature verification
-func (m *DefinitionsManager) VerifyFile(file string) bool {
+func (m *DefinitionsManager) verifyFile(file string) bool {
 	return true
 }
 
 // Download the virus database based on the last modified
 // This method blocks
-func (m *DefinitionsManager) DownloadDefinitions(url string, etag string) error {
+func (m *DefinitionsManager) DownloadDefinitions(definition definitionType) error {
+
+	// Set the URL
+	url := kDAILY_DATABASE_URL
+	if definition == MAIN_DEFINITION {
+		url = kMAIN_DATABASE_URL
+	}
+
+	// Get the ETAG
+	etag := m.EtagDaily
+	if definition == MAIN_DEFINITION {
+		etag = m.EtagMain
+	}
 
 	req, err := http.NewRequest("GET", url, nil)
 
@@ -151,26 +198,41 @@ func (m *DefinitionsManager) DownloadDefinitions(url string, etag string) error 
 	}
 
 	// make the request
+	fmt.Printf("Downloading %s definitions from %s ...\n", definition.String(), url)
 	resp, err := m.httpCLient.Do(req)
 	if err != nil {
 		return err
 	}
+	fmt.Println("Download completed, proceeding with parsing.")
 
 	// defer the closing of the body
 	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
 
 	//  check if the response was 304: Not modified => return, nothing to do here
 	if resp.StatusCode == 304 {
 		return nil
 	}
 
-	// add the Etag to the data
-	if url == MAIN_DATABASE_URL {
+	// TODO: here verify the signature
+
+	switch definition {
+	case MAIN_DEFINITION:
 		m.EtagMain = resp.Header.Get("Etag")
+		break
+	case DAILY_DEFINITION:
+		m.EtagDaily = resp.Header.Get("Etag")
+		break
 	}
 
-	if url == DAILY_DATABASE_URL {
-		m.EtagDaily = resp.Header.Get("Etag")
+	if definitions, err := extractFiles(body, definition); err == nil {
+		return generateYaraSignatures(definitions)
+	} else {
+		return err
 	}
 
 	return nil
@@ -222,7 +284,7 @@ func parseHeader(data []byte) (*definitionHeader, error) {
 }
 
 // Extract the file tar.gz
-func ExtractFiles(data []byte) ([]definitionFile, error) {
+func extractFiles(data []byte, fileType definitionType) ([]definitionFile, error) {
 
 	var files []definitionFile
 
@@ -265,7 +327,7 @@ func ExtractFiles(data []byte) ([]definitionFile, error) {
 				fmt.Printf("Could not untar %s: %s\n", header.Name, err)
 				continue
 			}
-			files = append(files, definitionFile{header.Name, fileBuffer.String()})
+			files = append(files, definitionFile{header.Name, fileBuffer.String(), fileType, kNDB_EXTENSION})
 			break
 		default:
 			fmt.Printf("ClamAV file format %s not supported at the moment\n", header.Name)
@@ -273,5 +335,30 @@ func ExtractFiles(data []byte) ([]definitionFile, error) {
 	}
 
 	return files, nil
+
+}
+
+// this method gets in the definition file array and call the appropriate methods for
+// creating yara sginatures based on the clamav format
+func generateYaraSignatures(definitions []definitionFile) error {
+
+	var err error
+	for _, file := range definitions {
+
+		switch file.Extension {
+
+		case kNDB_EXTENSION:
+			// parse the file and get back the yara signatures
+			sigs := parseNDBSignatures(file.Name, file.Data)
+			// wrote the yara files, separated by platform (win, linux, osx)
+			for _, ptSignature := range sigs {
+				if err = writeRules(ptSignature, file.DefinitionType); err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+	return err
 
 }

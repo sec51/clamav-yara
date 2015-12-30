@@ -26,35 +26,35 @@ func TestParseOffsetMaxShift(t *testing.T) {
 
 	// #### EP+n
 	testCase = fmt.Sprintf("EP+%d", testMaxShift) // "EP+1024"
-	offset, maxShift = parseOffsetMaxShift(ENTRY_POINT_PLUS, entryPointPlusFormat, testCase)
+	offset, maxShift = parseOffsetMaxShift(kENTRY_POINT_PLUS, entryPointPlusFormat, testCase)
 	if offset != defaultOffset || maxShift != testMaxShift {
 		t.Errorf("Could not parse EP+n offset case: %s\n", testCase)
 	}
 
 	// #### EP-n
 	testCase = fmt.Sprintf("EP-%d", testMaxShift) // "EP-1024"
-	offset, maxShift = parseOffsetMaxShift(ENTRY_POINT_MINUS, entryPointMinusFormat, testCase)
+	offset, maxShift = parseOffsetMaxShift(kENTRY_POINT_MINUS, entryPointMinusFormat, testCase)
 	if offset != defaultOffset || maxShift != testMaxShift {
 		t.Errorf("Could not parse EP-n offset case: %s\n", testCase)
 	}
 
 	// #### Sx+n
 	testCase = fmt.Sprintf("S%d+%d", leftOffset, testMaxShift) // "S512+1024"
-	offset, maxShift = parseOffsetMaxShift(START_SECTION_X, startSectionFormat, testCase)
+	offset, maxShift = parseOffsetMaxShift(kSTART_SECTION_X, startSectionFormat, testCase)
 	if offset != leftOffset || maxShift != testMaxShift {
 		t.Errorf("Could not parse EP-n offset case: %s - got offset %d instead of %d and shift: %d instead of %d\n", testCase, offset, leftOffset, maxShift, testMaxShift)
 	}
 
 	// #### SEx
 	testCase = "SE1" // "SE1"
-	offset, maxShift = parseOffsetMaxShift(ENTIRE_SECTION_X, entireSectionFormat, testCase)
+	offset, maxShift = parseOffsetMaxShift(kENTIRE_SECTION_X, entireSectionFormat, testCase)
 	if offset != 1 {
 		t.Errorf("Could not parse SEx offset case: %s\n", testCase)
 	}
 
 	// #### SL+n
 	testCase = fmt.Sprintf("SL+%d", testMaxShift) // "SL+1024"
-	offset, maxShift = parseOffsetMaxShift(START_LAST_SECTION, lastSectionFormat, testCase)
+	offset, maxShift = parseOffsetMaxShift(kSTART_LAST_SECTION, lastSectionFormat, testCase)
 	if offset != defaultOffset || maxShift != testMaxShift {
 		t.Errorf("Could not parse EP-n offset case: %s\n", testCase)
 	}
@@ -70,11 +70,11 @@ func TestParseNdbSignatureRow(t *testing.T) {
 		t.Errorf("Malware name parsing error. Got %s instead of %s\n", sig.MalwareName, "WIN_Trojan_Lolu")
 	}
 
-	if sig.TargetType != PE_TARGET {
-		t.Errorf("Malware target type parsing error. Got %d instead of %d\n", sig.TargetType, PE_TARGET)
+	if sig.TargetType != kPE_TARGET {
+		t.Errorf("Malware target type parsing error. Got %d instead of %d\n", sig.TargetType, kPE_TARGET)
 	}
 
-	if sig.Offset != 0 && sig.MaxShift != 0 && sig.OffsetType != ANY_OFFSET {
+	if sig.Offset != 0 && sig.MaxShift != 0 && sig.OffsetType != kANY_OFFSET {
 		t.Error("Malware Offset detection error. This supposed to be ANY OFFSET")
 	}
 
@@ -85,7 +85,7 @@ func TestParseNdbSignatureRow(t *testing.T) {
 	sample = "W32.Troxa:1:EP+0:e990fcffff"
 	sig = parseNdbSignatureRow(sample)
 
-	if sig.OffsetType != ENTRY_POINT_PLUS {
+	if sig.OffsetType != kENTRY_POINT_PLUS {
 		t.Fatal("Signatures should be of type ENTRY_POINT_PLUS")
 	}
 
@@ -98,7 +98,7 @@ func TestParseNDBSignatures(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	files, err := ExtractFiles(data)
+	files, err := extractFiles(data, MAIN_DEFINITION)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,14 +110,14 @@ func TestParseNDBSignatures(t *testing.T) {
 	// rename to singular
 	file := files[0]
 
-	pt := ParseNDBSignatures(file.Name, file.Data)
+	pt := parseNDBSignatures(file.Name, file.Data)
 
 	for _, ndbSig := range pt {
 		if len(ndbSig.Sigs) == 0 {
 			t.Errorf("Failed to parse signatures for platform: %s\n", ndbSig.Platform.String())
 		}
 
-		if err := writeRules(ndbSig); err != nil {
+		if err := writeRules(ndbSig, MAIN_DEFINITION); err != nil {
 			t.Fatal(err)
 		}
 

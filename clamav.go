@@ -16,38 +16,38 @@ type platform uint8
 const (
 
 	// signatureTarget
-	ANY_TARGET signatureTarget = 0 + iota
-	PE_TARGET
-	OLE2_TARGET
-	HTML_TARGET
-	MAIL_TARGET
-	GRAPHIC_TARGET
-	ELF_TARGET
-	ASCII_TARGET
-	UNUSED_TARGET
-	MACH_O_TARGET
-	PDF_TARGET
-	FLASH_TARGET
-	JAVA_TARGET
+	kANY_TARGET signatureTarget = 0 + iota
+	kPE_TARGET
+	kOLE2_TARGET
+	kHTML_TARGET
+	kMAIL_TARGET
+	kGRAPHIC_TARGET
+	kELF_TARGET
+	kASCII_TARGET
+	kUNUSED_TARGET
+	kMACH_O_TARGET
+	kPDF_TARGET
+	kFLASH_TARGET
+	kJAVA_TARGET
 )
 
 const (
 	// platform
-	WIN_PLATFORM platform = 0 + iota
-	LINUX_PLATFORM
-	OSX_PLATFORM
+	kWIN_PLATFORM platform = 0 + iota
+	kLINUX_PLATFORM
+	kOSX_PLATFORM
 )
 
 const (
 	// OFFSET TYPE
-	ANY_OFFSET = 0 + iota
-	ABSOLUTE_OFFSET
-	END_OF_FILE_MINUS
-	ENTRY_POINT_PLUS
-	ENTRY_POINT_MINUS
-	START_SECTION_X
-	ENTIRE_SECTION_X
-	START_LAST_SECTION
+	kANY_OFFSET = 0 + iota
+	kABSOLUTE_OFFSET
+	kEND_OF_FILE_MINUS
+	kENTRY_POINT_PLUS
+	kENTRY_POINT_MINUS
+	kSTART_SECTION_X
+	kENTIRE_SECTION_X
+	kSTART_LAST_SECTION
 )
 
 var (
@@ -60,11 +60,11 @@ var (
 
 func (p platform) String() string {
 	switch p {
-	case WIN_PLATFORM:
+	case kWIN_PLATFORM:
 		return "windows"
-	case LINUX_PLATFORM:
+	case kLINUX_PLATFORM:
 		return "linux"
-	case OSX_PLATFORM:
+	case kOSX_PLATFORM:
 		return "osx"
 	default:
 		return "unknown"
@@ -139,7 +139,7 @@ func translateSignatureToYARA(sigHash string) string {
 
 // This method is used to write the final yara rule files
 // It automatically creates all 3: Win, Linux, OS X
-func writeRules(pt *platformNdbSigs) error {
+func writeRules(pt *platformNdbSigs, fileType definitionType) error {
 
 	// parse the template
 	tpl, err := template.ParseFiles("yara.tpl")
@@ -158,7 +158,7 @@ func writeRules(pt *platformNdbSigs) error {
 	}
 
 	// write the template to disk
-	err = ioutil.WriteFile(filepath.Join(rulesFolder, pt.Platform.String()+".yara"), buffer.Bytes(), 0644)
+	err = ioutil.WriteFile(filepath.Join(rulesFolder, fileType.String()+"_"+pt.Platform.String()+".yara"), buffer.Bytes(), 0644)
 
 	return err
 
