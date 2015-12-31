@@ -93,11 +93,13 @@ func TestParseOffsetMaxShift(t *testing.T) {
 
 func TestParseNdbSignatureRow(t *testing.T) {
 
-	sample := `WIN.Trojan.Lolu:1:*:6e23692300000000ffffffff0400000022202f6600000000ffffffff0100000041000000ffffffff0100000043000000ffffffff07000000636d*6f72644c756369`
-	sig := parseNdbSignatureRow(sample)
+	signature := new(signature)
 
-	if sig.MalwareName != "WIN_Trojan_Lolu" {
-		t.Errorf("Malware name parsing error. Got %s instead of %s\n", sig.MalwareName, "WIN_Trojan_Lolu")
+	sample := `WIN.Trojan.Lolu:1:*:6e23692300000000ffffffff0400000022202f6600000000ffffffff0100000041000000ffffffff0100000043000000ffffffff07000000636d*6f72644c756369`
+	sig := parseNdbSignatureRow(sample, signature)
+
+	if signature.MalwareName != "WIN_Trojan_Lolu" {
+		t.Errorf("Malware name parsing error. Got %s instead of %s\n", signature.MalwareName, "WIN_Trojan_Lolu")
 	}
 
 	if sig.TargetType != kPE_TARGET {
@@ -108,12 +110,12 @@ func TestParseNdbSignatureRow(t *testing.T) {
 		t.Error("Malware Offset detection error. This supposed to be ANY OFFSET")
 	}
 
-	if sig.SigHash != "6E23692300000000FFFFFFFF0400000022202F6600000000FFFFFFFF0100000041000000FFFFFFFF0100000043000000FFFFFFFF07000000636D[-]6F72644C756369" {
+	if signature.SigHash != "6E23692300000000FFFFFFFF0400000022202F6600000000FFFFFFFF0100000041000000FFFFFFFF0100000043000000FFFFFFFF07000000636D[-]6F72644C756369" {
 		t.Error("Malware signature detection error")
 	}
 
 	sample = "W32.Troxa:1:EP+0:e990fcffff"
-	sig = parseNdbSignatureRow(sample)
+	sig = parseNdbSignatureRow(sample, signature)
 
 	if sig.OffsetType != kENTRY_POINT_PLUS {
 		t.Fatal("Signatures should be of type ENTRY_POINT_PLUS")

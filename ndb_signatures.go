@@ -45,22 +45,37 @@ var (
 type platformNdbSigs struct {
 	Platform        platform
 	SigsNames       map[string]int // this map is used to lookup how many times the same name is used
-	Sigs            []*ndbSignature
+	Sigs            []*signature
 	LastGeneration  time.Time
 	TotalSignatures int
 }
 
+// General signature struct
+// It needs to have all those booleans because of the template rendering. Looking for a better way to handle this.
+// Probably need to define a function on the template itself
+type signature struct {
+	MalwareName string
+	SigHash     string
+	IsString    bool // denotes whether a signature is a string or hex
+
+	IsNdbSignature bool
+	IsHsbSignature bool
+	IsHdbSignature bool
+	IsMdbSignature bool
+
+	NdbSig *ndbSignature
+}
+
 type ndbSignature struct {
-	MalwareName        string
-	TargetType         signatureTarget
-	OffsetType         uint8
-	Offset             uint64
-	MaxShift           uint64
-	SigHash            string
+	//MalwareName        string
+	TargetType signatureTarget
+	OffsetType uint8
+	Offset     uint64
+	MaxShift   uint64
+	//SigHash            string
 	RequirePEModule    bool
 	RequireELFModule   bool
 	RequireMachOModule bool // YARA does not have it yet, but it is used to identify Mach-O file/process types
-	IsString           bool
 	// In order to render the template we need some helper methods to dected what kind of offset we are dealing with
 	IsAbsoluteOffset        bool
 	IsEndOfFileMinusOffset  bool
@@ -80,7 +95,7 @@ func newPlatformNdbSigs(pt platform) *platformNdbSigs {
 
 // convinient method to add signature to the array
 // it also checks whether a malware name was already used, if so add increment to the name
-func (pndb *platformNdbSigs) AddSigs(signature *ndbSignature) {
+func (pndb *platformNdbSigs) AddSigs(signature *signature) {
 
 	// check if the malware name has already appeared - otherwise add it with increment zero
 	if total, ok := pndb.SigsNames[signature.MalwareName]; ok {
@@ -95,7 +110,7 @@ func (pndb *platformNdbSigs) AddSigs(signature *ndbSignature) {
 }
 
 // Used to clone signatires so they can be added to different platform with slightly different flags set
-func cloneSignature(originalSig *ndbSignature) *ndbSignature {
+func cloneSignature(originalSig *signature) *signature {
 	newSignature := *originalSig
 	return &newSignature
 }
@@ -121,40 +136,47 @@ func parseNDBSignatures(headerName string, data string) []*platformNdbSigs {
 
 	// loop thorugh each row string and parse it
 	for _, row := range fileRows {
+		sig := new(signature)
+		// parse the ndb signature format
+		ndbSignature := parseNdbSignatureRow(row, sig)
+		if ndbSignature != nil {
 
-		signature := parseNdbSignatureRow(row)
-		if signature != nil {
-			switch signature.TargetType {
+			// set the flag for rendering in the template
+			sig.IsNdbSignature = true
+			// assign the ndb signature to the general one
+			sig.NdbSig = ndbSignature
+
+			switch ndbSignature.TargetType {
 			// add to all 3 targets
 			case kANY_TARGET:
 
 				// YARA does not have a module for MACH-O files yet - so do not flip any flag at the moment
-				osx.AddSigs(signature)
+				osx.AddSigs(sig)
 
 				// Linux (ELF)
-				nixSig := cloneSignature(signature)
-				nixSig.RequireELFModule = true
+				nixSig := cloneSignature(sig)
+				nixSig.NdbSig.RequireELFModule = true
 				linux.AddSigs(nixSig)
 
 				// Win (PE)
-				winSig := cloneSignature(signature)
-				winSig.RequirePEModule = true
+				winSig := cloneSignature(sig)
+				winSig.NdbSig.RequirePEModule = true
 				win.AddSigs(winSig)
 				break
 				// add to all WIN targets and needs the PE module !
 			case kPE_TARGET:
 				// set PE module as required
-				signature.RequirePEModule = true
-				win.AddSigs(signature)
+				sig.NdbSig.RequirePEModule = true
+				win.AddSigs(sig)
 				break
 			case kELF_TARGET:
 				// set ELF module as required
-				signature.RequireELFModule = true
-				linux.AddSigs(signature)
+				sig.NdbSig.RequireELFModule = true
+				linux.AddSigs(sig)
 				break
 			case kMACH_O_TARGET:
-				signature.RequireMachOModule = true
-				osx.AddSigs(signature)
+				sig.NdbSig.RequireMachOModule = true
+				osx.AddSigs(sig)
 				break
 			}
 		}
@@ -176,7 +198,7 @@ func parseNDBSignatures(headerName string, data string) []*platformNdbSigs {
 }
 
 // parse a single NDB signature row
-func parseNdbSignatureRow(row string) *ndbSignature {
+func parseNdbSignatureRow(row string, signature *signature) *ndbSignature {
 
 	tokens := strings.Split(row, ":")
 	if len(tokens) == 0 || len(row) == 0 {
@@ -193,7 +215,7 @@ func parseNdbSignatureRow(row string) *ndbSignature {
 
 		switch index {
 		case 0: // Malware name
-			sig.MalwareName = sanitizeMalwareName(value)
+			signature.MalwareName = sanitizeMalwareName(value)
 			continue
 		case 1: // Target type
 			// convert the string to an int (TODO: convert it directly to uint8)
@@ -287,8 +309,8 @@ func parseNdbSignatureRow(row string) *ndbSignature {
 			continue
 		case 3: // hex signature
 			// this methos converts the format from CLAMAV signature to YARA
-			sig.IsString = !regexpHexString.MatchString(value)
-			sig.SigHash = translateSignatureToYARA(value)
+			signature.IsString = !regexpHexString.MatchString(value)
+			signature.SigHash = translateSignatureToYARA(value)
 			continue
 		case 4: // optional Min FL
 			// this is used only to specify the engine MIN value for ClamAV

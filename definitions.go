@@ -96,6 +96,7 @@ const (
 	kNDB_EXTENSION definitionExtensionType = 0 + iota
 	kHSB_EXTENSION
 	kHDB_EXTENSION
+	kMDB_EXTENSION
 )
 
 // Created once, this object allows to download the ClamAV definitions from a specific URL (at the moment hard coded)
