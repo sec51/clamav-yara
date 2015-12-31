@@ -29,7 +29,7 @@ var (
 	entireSectionFormat string = "SE%d"
 
 	// SL+n = start of last section plus n bytes
-	lastSectionRegex         = regexp.MustCompile("^SL[0-9]+")
+	lastSectionRegex         = regexp.MustCompile("^SL\\+[0-9]+")
 	lastSectionFormat string = "SL+%d"
 
 	// n
