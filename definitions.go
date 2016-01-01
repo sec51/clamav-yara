@@ -10,6 +10,7 @@ import (
 	"golang.org/x/crypto/openpgp/armor"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -201,12 +202,12 @@ func (m *DefinitionsManager) DownloadDefinitions(definition definitionType) erro
 	}
 
 	// make the request
-	fmt.Printf("Downloading %s definitions from %s ...\n", definition.String(), url)
+	log.Printf("Downloading %s definitions from %s ...\n", definition.String(), url)
 	resp, err := m.httpCLient.Do(req)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Download completed, proceeding with parsing.")
+	log.Println("Download completed, proceeding with parsing.")
 
 	// defer the closing of the body
 	defer resp.Body.Close()
@@ -218,6 +219,7 @@ func (m *DefinitionsManager) DownloadDefinitions(definition definitionType) erro
 
 	//  check if the response was 304: Not modified => return, nothing to do here
 	if resp.StatusCode == 304 {
+		log.Printf("%s.cvd has not changed since last download. Nothing to do here.\n=========================", definition.String())
 		return nil
 	}
 
@@ -233,13 +235,12 @@ func (m *DefinitionsManager) DownloadDefinitions(definition definitionType) erro
 	}
 
 	if definitions, err := extractFiles(body, definition); err == nil {
-		return generateYaraSignatures(definitions)
+		generationError := generateYaraSignatures(definitions)
+		log.Printf("%s.cvd parsing completed.\n=========================", definition.String())
+		return generationError
 	} else {
 		return err
 	}
-
-	return nil
-
 }
 
 // Parse the clamav virus database header
@@ -327,7 +328,7 @@ func extractFiles(data []byte, fileType definitionType) (map[definitionExtension
 		case strings.Contains(header.Name, ".ndb"):
 			// read the file into the buffer
 			if _, err := io.Copy(&fileBuffer, tarReader); err != nil {
-				fmt.Printf("Could not untar %s: %s\n", header.Name, err)
+				log.Printf("Could not untar %s: %s\n", header.Name, err)
 				continue
 			}
 			//files = append(files,
@@ -353,7 +354,7 @@ func extractFiles(data []byte, fileType definitionType) (map[definitionExtension
 		case strings.Contains(header.Name, ".hdb") || strings.Contains(header.Name, ".hsb"):
 			// read the file into the buffer
 			if _, err := io.Copy(&fileBuffer, tarReader); err != nil {
-				fmt.Printf("Could not untar %s: %s\n", header.Name, err)
+				log.Printf("Could not untar %s: %s\n", header.Name, err)
 				continue
 			}
 			//files = append(files, definitionFile{header.Name, fileBuffer.String(), fileType, kMDB_EXTENSION})
@@ -365,7 +366,7 @@ func extractFiles(data []byte, fileType definitionType) (map[definitionExtension
 			files[kHDB_EXTENSION] = definitionFile{header.Name, fileBuffer.String(), fileType, kHDB_EXTENSION}
 			break
 		default:
-			fmt.Printf("ClamAV file format %s not supported at the moment\n", header.Name)
+			//fmt.Printf("ClamAV file format %s not supported at the moment\n", header.Name)
 		}
 	}
 

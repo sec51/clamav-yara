@@ -1,28 +1,26 @@
-### WORK IN PROGRESS
-
-[![Build Status](https://travis-ci.org/sec51/clamav-yara.svg?branch=master)](https://travis-ci.org/sec51/clamav-yara)
+### Convert ClamAV definitions to Yara rules [![Build Status](https://travis-ci.org/sec51/clamav-yara.svg?branch=master)](https://travis-ci.org/sec51/clamav-yara)
 
 ===
 
-### Clamav To Yara [WORK IN PROGRESS]
+### Clamav To Yara: features:
 
-* Downloads the definitions periodically from clamav
+* Downloads the definitions periodically from clamav: at the moment hard coded in main.go to 4 hours
 
 * Checks the definitions were changes via Etag
 
-* Checks the hash of the definitions files is valid
+* ON HOLD: Checks the hash of the definitions files is valid. Got around it by installing clamav on our servers with freshclam and setting the URLs to our servers, which downloads in HTTPS
 
-* Extract the signatures and generate YARA rules
+* Extract the signatures and generate YARA rules. At the moment the ClamAV file parsed are: NDB, HDB, HSB. MDB and MSB are done as well, but need to find a way to generate proper YARA rules with that.
 
 ===
 
 ### TODO
 
-* Create a general way of parsing different signature formats. At the moment we are dealing only with NDB signatures, but there are a lot of commonalities with other formats.
-
 * Use FILE module on OSX and LINUX to detect the file type and scan that specific file only.
 
 * Test if FILE, PE, ELF module cause memory leaks
+
+* Wait for Golang 1.6 and hope that they introduce the {{- end}} tag in the template package, to remove the empty spaces.
 
 ===
 
