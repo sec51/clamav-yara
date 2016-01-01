@@ -334,22 +334,22 @@ func extractFiles(data []byte, fileType definitionType) (map[definitionExtension
 			files[kNDB_EXTENSION] = definitionFile{header.Name, fileBuffer.String(), fileType, kNDB_EXTENSION}
 			break
 			// merge these two types: mdb + msb together
-		case strings.Contains(header.Name, ".mdb") || strings.Contains(header.Name, ".msb"):
-			// read the file into the buffer
-			if _, err := io.Copy(&fileBuffer, tarReader); err != nil {
-				fmt.Printf("Could not untar %s: %s\n", header.Name, err)
-				continue
-			}
+		// case strings.Contains(header.Name, ".mdb") || strings.Contains(header.Name, ".msb"):
+		// 	// read the file into the buffer
+		// 	if _, err := io.Copy(&fileBuffer, tarReader); err != nil {
+		// 		fmt.Printf("Could not untar %s: %s\n", header.Name, err)
+		// 		continue
+		// 	}
 
-			if definition, ok := files[kMDB_EXTENSION]; ok {
-				definition.Data = definition.Data + "\n" + fileBuffer.String()
-				files[kMDB_EXTENSION] = definition
-				break
-			}
-			files[kMDB_EXTENSION] = definitionFile{header.Name, fileBuffer.String(), fileType, kMDB_EXTENSION}
-			break
+		// 	if definition, ok := files[kMDB_EXTENSION]; ok {
+		// 		definition.Data = definition.Data + "\n" + fileBuffer.String()
+		// 		files[kMDB_EXTENSION] = definition
+		// 		break
+		// 	}
+		// 	files[kMDB_EXTENSION] = definitionFile{header.Name, fileBuffer.String(), fileType, kMDB_EXTENSION}
+		// 	break
 
-			// merge these two types: hdb + hsb together
+		// merge these two types: hdb + hsb together
 		case strings.Contains(header.Name, ".hdb") || strings.Contains(header.Name, ".hsb"):
 			// read the file into the buffer
 			if _, err := io.Copy(&fileBuffer, tarReader); err != nil {
