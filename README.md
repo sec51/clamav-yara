@@ -14,6 +14,20 @@
 
 ===
 
+### How to generate the rules
+
+```
+git clone https://github.com/sec51/clamav-yara.git
+
+go build
+
+./clamav-yara
+```
+
+You can then find the generated Yara rules inside the `rules` folder
+
+===
+
 ### TODO
 
 * Use FILE module on OSX and LINUX to detect the file type and scan that specific file only.
