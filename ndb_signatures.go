@@ -29,50 +29,21 @@ type ndbSignature struct {
 	IsLastSectionAtOffset   bool
 }
 
-func newPlatformNdbSigs(pt platform) *platformNdbSigs {
-	sig := new(platformNdbSigs)
-	sig.Platform = pt
-	sig.SigsNames = make(map[string]int)
-	return sig
-}
-
-// convinient method to add signature to the array
-// it also checks whether a malware name was already used, if so add increment to the name
-func (pndb *platformNdbSigs) AddSigs(signature *signature) {
-
-	// check if the malware name has already appeared - otherwise add it with increment zero
-	if total, ok := pndb.SigsNames[signature.MalwareName]; ok {
-		increment := total + 1
-		pndb.SigsNames[signature.MalwareName] = increment
-		signature.MalwareName = signature.MalwareName + "__" + strconv.Itoa(increment)
-	} else {
-		pndb.SigsNames[signature.MalwareName] = 0
-	}
-	pndb.Sigs = append(pndb.Sigs, signature)
-
-}
-
-// Used to clone signatires so they can be added to different platform with slightly different flags set
-func cloneSignature(originalSig *signature) *signature {
-	newSignature := *originalSig
-	return &newSignature
-}
-
 // Parse the NDB signatures
 // This method has side effects only and creates the spefici yara files with the ndb signatures in it, devided by platform (win, os x, linux)
 // If BOTH Offset and MaxShift are zero then it means: any (*)
-func parseNDBSignatures(headerName string, data string) []*platformNdbSigs {
+func parseNDBSignatures(headerName string, data string) []*platformSigs {
 
-	var platforms []*platformNdbSigs
+	var platforms []*platformSigs
 
 	// OSX container for the respective signatures
-	osx := newPlatformNdbSigs(kOSX_PLATFORM)
+	osx := newPlatformSigs(kOSX_PLATFORM)
 
 	// LINUX container for the respective signatures
-	linux := newPlatformNdbSigs(kLINUX_PLATFORM)
+	linux := newPlatformSigs(kLINUX_PLATFORM)
 
 	// // WIN container for the respective signatures
-	win := newPlatformNdbSigs(kWIN_PLATFORM)
+	win := newPlatformSigs(kWIN_PLATFORM)
 
 	// split the file via new line
 	fileRows := parseFile(headerName, data)

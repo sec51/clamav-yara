@@ -36,6 +36,7 @@ const (
 	kWIN_PLATFORM platform = 0 + iota
 	kLINUX_PLATFORM
 	kOSX_PLATFORM
+	kANY_PLATFORM
 )
 
 const (
@@ -66,6 +67,8 @@ func (p platform) String() string {
 		return "linux"
 	case kOSX_PLATFORM:
 		return "osx"
+	case kANY_PLATFORM:
+		return "any"
 	default:
 		return "unknown"
 	}
@@ -139,7 +142,7 @@ func translateSignatureToYARA(sigHash string) string {
 
 // This method is used to write the final yara rule files
 // It automatically creates all 3: Win, Linux, OS X
-func writeRules(pt *platformNdbSigs, fileType definitionType) error {
+func writeRules(pt *platformSigs, fileType definitionType, signatureType definitionExtensionType) error {
 
 	// parse the template
 	tpl, err := template.ParseFiles("yara.tpl")
@@ -158,7 +161,17 @@ func writeRules(pt *platformNdbSigs, fileType definitionType) error {
 	}
 
 	// write the template to disk
-	err = ioutil.WriteFile(filepath.Join(rulesFolder, fileType.String()+"_"+pt.Platform.String()+".yara"), buffer.Bytes(), 0644)
+
+	fileName := fileType.String() + "_" + pt.Platform.String() + ".yara"
+
+	switch signatureType {
+	case kHDB_EXTENSION:
+		fileName = "file_" + fileName
+	}
+
+	fullPath := filepath.Join(rulesFolder, fileName)
+
+	err = ioutil.WriteFile(fullPath, buffer.Bytes(), 0644)
 
 	return err
 

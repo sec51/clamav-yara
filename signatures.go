@@ -2,6 +2,7 @@ package main
 
 import (
 	"regexp"
+	"strconv"
 	"time"
 )
 
@@ -37,7 +38,7 @@ var (
 )
 
 // this struct holds the NDB signature for each platform
-type platformNdbSigs struct {
+type platformSigs struct {
 	Platform        platform
 	SigsNames       map[string]int // this map is used to lookup how many times the same name is used
 	Sigs            []*signature
@@ -54,9 +55,39 @@ type signature struct {
 	IsString    bool // denotes whether a signature is a string or hex
 
 	IsNdbSignature bool
-	IsHsbSignature bool
 	IsHdbSignature bool
 	IsMdbSignature bool
 
 	NdbSig *ndbSignature
+	MdbSig *mdbSignature
+	HdbSig *hdbSignature
+}
+
+func newPlatformSigs(pt platform) *platformSigs {
+	sig := new(platformSigs)
+	sig.Platform = pt
+	sig.SigsNames = make(map[string]int)
+	return sig
+}
+
+// convinient method to add signature to the array
+// it also checks whether a malware name was already used, if so add increment to the name
+func (ps *platformSigs) AddSigs(signature *signature) {
+
+	// check if the malware name has already appeared - otherwise add it with increment zero
+	if total, ok := ps.SigsNames[signature.MalwareName]; ok {
+		increment := total + 1
+		ps.SigsNames[signature.MalwareName] = increment
+		signature.MalwareName = signature.MalwareName + "__" + strconv.Itoa(increment)
+	} else {
+		ps.SigsNames[signature.MalwareName] = 0
+	}
+	ps.Sigs = append(ps.Sigs, signature)
+
+}
+
+// Used to clone signatires so they can be added to different platform with slightly different flags set
+func cloneSignature(originalSig *signature) *signature {
+	newSignature := *originalSig
+	return &newSignature
 }

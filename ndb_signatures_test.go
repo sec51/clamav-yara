@@ -109,7 +109,7 @@ func TestParseNDBSignatures(t *testing.T) {
 			t.Errorf("Failed to parse signatures for platform: %s\n", ndbSig.Platform.String())
 		}
 
-		if err := writeRules(ndbSig, MAIN_DEFINITION); err != nil {
+		if err := writeRules(ndbSig, MAIN_DEFINITION, kNDB_EXTENSION); err != nil {
 			t.Fatal(err)
 		}
 

@@ -1,7 +1,2 @@
 clamav-yara
-rules/main_linux.yara
-rules/main_osx.yara
-rules/main_windows.yara
-rules/daily_linux.yara
-rules/daily_osx.yara
-rules/daily_windows.yara
+rules/*.yara

@@ -81,8 +81,10 @@ type definitionExtensionType uint8
 
 // the default URLs for downloading the definitions
 const (
-	kMAIN_DATABASE_URL  = "http://database.clamav.net/main.cvd"
-	kDAILY_DATABASE_URL = "http://database.clamav.net/daily.cvd"
+	//kMAIN_DATABASE_URL  = "http://database.clamav.net/main.cvd"
+	//kDAILY_DATABASE_URL = "http://database.clamav.net/daily.cvd"
+	kMAIN_DATABASE_URL  = "https://sec51.com/definitions/main.cvd"
+	kDAILY_DATABASE_URL = "https://sec51.com/definitions/daily.cvd"
 )
 
 // The definition types (main, daily for now)
@@ -285,9 +287,9 @@ func parseHeader(data []byte) (*definitionHeader, error) {
 }
 
 // Extract the file tar.gz
-func extractFiles(data []byte, fileType definitionType) ([]definitionFile, error) {
+func extractFiles(data []byte, fileType definitionType) (map[definitionExtensionType]definitionFile, error) {
 
-	var files []definitionFile
+	files := make(map[definitionExtensionType]definitionFile)
 
 	// extract the data only and cut the header off
 	tarGzip := data[512:]
@@ -328,7 +330,39 @@ func extractFiles(data []byte, fileType definitionType) ([]definitionFile, error
 				fmt.Printf("Could not untar %s: %s\n", header.Name, err)
 				continue
 			}
-			files = append(files, definitionFile{header.Name, fileBuffer.String(), fileType, kNDB_EXTENSION})
+			//files = append(files,
+			files[kNDB_EXTENSION] = definitionFile{header.Name, fileBuffer.String(), fileType, kNDB_EXTENSION}
+			break
+			// merge these two types: mdb + msb together
+		case strings.Contains(header.Name, ".mdb") || strings.Contains(header.Name, ".msb"):
+			// read the file into the buffer
+			if _, err := io.Copy(&fileBuffer, tarReader); err != nil {
+				fmt.Printf("Could not untar %s: %s\n", header.Name, err)
+				continue
+			}
+
+			if definition, ok := files[kMDB_EXTENSION]; ok {
+				definition.Data = definition.Data + "\n" + fileBuffer.String()
+				files[kMDB_EXTENSION] = definition
+				break
+			}
+			files[kMDB_EXTENSION] = definitionFile{header.Name, fileBuffer.String(), fileType, kMDB_EXTENSION}
+			break
+
+			// merge these two types: hdb + hsb together
+		case strings.Contains(header.Name, ".hdb") || strings.Contains(header.Name, ".hsb"):
+			// read the file into the buffer
+			if _, err := io.Copy(&fileBuffer, tarReader); err != nil {
+				fmt.Printf("Could not untar %s: %s\n", header.Name, err)
+				continue
+			}
+			//files = append(files, definitionFile{header.Name, fileBuffer.String(), fileType, kMDB_EXTENSION})
+			if definition, ok := files[kHDB_EXTENSION]; ok {
+				definition.Data = definition.Data + "\n" + fileBuffer.String()
+				files[kMDB_EXTENSION] = definition
+				break
+			}
+			files[kHDB_EXTENSION] = definitionFile{header.Name, fileBuffer.String(), fileType, kHDB_EXTENSION}
 			break
 		default:
 			fmt.Printf("ClamAV file format %s not supported at the moment\n", header.Name)
@@ -341,23 +375,40 @@ func extractFiles(data []byte, fileType definitionType) ([]definitionFile, error
 
 // this method gets in the definition file array and call the appropriate methods for
 // creating yara sginatures based on the clamav format
-func generateYaraSignatures(definitions []definitionFile) error {
+func generateYaraSignatures(definitions map[definitionExtensionType]definitionFile) error {
 
 	var err error
+	var sigs []*platformSigs
 	for _, file := range definitions {
 
+		// parse the proper definition
 		switch file.Extension {
-
 		case kNDB_EXTENSION:
 			// parse the file and get back the yara signatures
-			sigs := parseNDBSignatures(file.Name, file.Data)
-			// wrote the yara files, separated by platform (win, linux, osx)
-			for _, ptSignature := range sigs {
-				if err = writeRules(ptSignature, file.DefinitionType); err != nil {
-					return err
-				}
+			sigs = parseNDBSignatures(file.Name, file.Data)
+			break
 
+		case kMDB_EXTENSION:
+			// parse the file and get back the yara signatures
+			// WARNING: the parsing is done however we need to come up with a good way to
+			// generate the YARA rules out of it. With the current method, yara triggers: loop nesting limit exceeded
+			// Once done, uncomment this
+
+			// sigs = parseMDBSignatures(file.Name, file.Data)
+			break
+
+		case kHDB_EXTENSION:
+			// parse the file and get back the yara signatures
+			sigs = parseHDBSignatures(file.Name, file.Data)
+			break
+		}
+
+		// write the yara files, separated by platform (win, linux, osx, any) and based on the extension type
+		for _, ptSignature := range sigs {
+			if err = writeRules(ptSignature, file.DefinitionType, file.Extension); err != nil {
+				return err
 			}
+
 		}
 	}
 	return err
