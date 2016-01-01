@@ -2,7 +2,7 @@
 
 ===
 
-### Clamav To Yara: features:
+### Clamav To Yara features:
 
 * Downloads the definitions periodically from clamav: at the moment hard coded in main.go to 4 hours
 
@@ -20,6 +20,8 @@
 git clone https://github.com/sec51/clamav-yara.git
 
 go build
+
+go test -v
 
 ./clamav-yara
 ```
