@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"time"
 )
@@ -34,4 +35,6 @@ func downloadDefinitions(manager *DefinitionsManager) {
 	if err = manager.DownloadDefinitions(DAILY_DEFINITION); err != nil {
 		log.Fatal(err)
 	}
+
+	fmt.Printf("Waiting now for the next iteration in %v\n=========================\n", kDOWNLOAD_AFTER)
 }

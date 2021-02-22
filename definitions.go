@@ -82,10 +82,10 @@ type definitionExtensionType uint8
 
 // the default URLs for downloading the definitions
 const (
-	//kMAIN_DATABASE_URL  = "http://database.clamav.net/main.cvd"
-	//kDAILY_DATABASE_URL = "http://database.clamav.net/daily.cvd"
-	kMAIN_DATABASE_URL  = "https://sec51.com/definitions/main.cvd"
-	kDAILY_DATABASE_URL = "https://sec51.com/definitions/daily.cvd"
+	kMAIN_DATABASE_URL  = "http://database.clamav.net/main.cvd"
+	kDAILY_DATABASE_URL = "http://database.clamav.net/daily.cvd"
+	//kMAIN_DATABASE_URL  = "https://sec51.com/definitions/main.cvd"
+	//kDAILY_DATABASE_URL = "https://sec51.com/definitions/daily.cvd"
 )
 
 // The definition types (main, daily for now)
@@ -142,7 +142,7 @@ func (def definitionType) String() string {
 // Initialize a new DefinitionManager
 // The definition manager is responsible for downloading the main.cvd and daily.cvd from
 // the URLs defined above, via conditional (ETAG) requests
-// In addiiton it holds the state of the download (ETAGS and signature, once verification is done)
+// In addition it holds the state of the download (ETAGS and signature, once verification is done)
 func NewDefinitionManager() (*DefinitionsManager, error) {
 
 	// new instance of the manager
@@ -290,6 +290,10 @@ func parseHeader(data []byte) (*definitionHeader, error) {
 // Extract the file tar.gz
 func extractFiles(data []byte, fileType definitionType) (map[definitionExtensionType]definitionFile, error) {
 
+	if len(data) < 512{
+		return nil, fmt.Errorf("invalid data length received from download: %v", len(data))
+	}
+
 	files := make(map[definitionExtensionType]definitionFile)
 
 	// extract the data only and cut the header off
@@ -375,7 +379,7 @@ func extractFiles(data []byte, fileType definitionType) (map[definitionExtension
 }
 
 // this method gets in the definition file array and call the appropriate methods for
-// creating yara sginatures based on the clamav format
+// creating yara signatures based on the clamav format
 func generateYaraSignatures(definitions map[definitionExtensionType]definitionFile) error {
 
 	var err error
