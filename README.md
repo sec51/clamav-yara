@@ -1,6 +1,6 @@
 ### Convert ClamAV definitions to Yara rules [![Build Status](https://travis-ci.org/sec51/clamav-yara.svg?branch=master)](https://travis-ci.org/sec51/clamav-yara)
 
-===
+---
 
 ### Clamav To Yara features:
 
@@ -12,12 +12,14 @@
 
 * Extract the signatures and generate YARA rules. At the moment the ClamAV file parsed are: NDB, HDB, HSB. MDB and MSB are done as well, but need to find a way to generate proper YARA rules with that.
 
-===
+---
 
 ### How to generate the rules
 
-```
+```bash
 git clone https://github.com/sec51/clamav-yara.git
+
+cd clamav-yara
 
 go build
 
@@ -27,8 +29,7 @@ go test -v
 ```
 
 You can then find the generated Yara rules inside the `rules` folder
-
-===
+---
 
 ### TODO
 
@@ -38,7 +39,7 @@ You can then find the generated Yara rules inside the `rules` folder
 
 * Wait for Golang 1.6 and hope that they introduce the {{- end}} tag in the template package, to remove the empty spaces.
 
-===
+---
 
 ### LICENSE
 

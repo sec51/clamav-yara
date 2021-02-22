@@ -38,15 +38,15 @@ func TestParseHeader(t *testing.T) {
 	}
 
 	if def.Level != 60 {
-		t.Errorf("Parsing Level header, expected level 60, got %s\n", def.Level)
+		t.Errorf("Parsing Level header, expected level 60, got %v\n", def.Level)
 	}
 
 	if def.TotalSignatures != 2424225 {
-		t.Errorf("Parsing TotalSignatures header, expected level 2424225, got %s\n", def.TotalSignatures)
+		t.Errorf("Parsing TotalSignatures header, expected level 2424225, got %v\n", def.TotalSignatures)
 	}
 
 	if def.Version != 55 {
-		t.Errorf("Parsing TotalSignatures header, expected level 55, got %s\n", def.Version)
+		t.Errorf("Parsing TotalSignatures header, expected level 55, got %v\n", def.Version)
 	}
 
 	if def.MD5Hash == "" {
